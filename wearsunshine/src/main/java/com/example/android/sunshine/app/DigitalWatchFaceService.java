@@ -32,8 +32,11 @@ import android.text.format.DateUtils;
 import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.WindowInsets;
+import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.GoogleApiAvailability;
+import com.google.android.gms.common.GooglePlayServicesUtil;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.common.api.PendingResult;
 import com.google.android.gms.common.api.ResultCallback;
@@ -85,6 +88,8 @@ public class DigitalWatchFaceService extends CanvasWatchFaceService {
         static final int INTERACTIVE_UPDATE_RATE_MS = 1000;
         static final String COLON_STRING = ":";
 
+        boolean mIsRound;
+
         String mMinTemp = "";
         String mMaxTemp = "";
         Asset mWeatherAsset;
@@ -92,10 +97,6 @@ public class DigitalWatchFaceService extends CanvasWatchFaceService {
 
         Calendar mCalendar;
 
-        private float mXOffset;
-        private float mXStepsOffset;
-        private float mYOffset;
-        private float mLineHeight;
         private float mColonWidth;
 
         boolean mLowBitAmbient;
@@ -103,6 +104,7 @@ public class DigitalWatchFaceService extends CanvasWatchFaceService {
         // graphic objects
         Paint mTimePaint;
         Paint mDatePaint;
+        int mBitmapSize;
         Paint mWeatherPaint1;
         Paint mWeatherPaint2;
 
@@ -141,11 +143,9 @@ public class DigitalWatchFaceService extends CanvasWatchFaceService {
             super.onApplyWindowInsets(insets);
 
             // Load resources that have alternate values for round watches.
-            boolean isRound = insets.isRound();
-            mXOffset = getResources().getDimension(isRound
-                    ? R.dimen.fit_x_offset_round : R.dimen.fit_x_offset);
-            float textSize =  getResources().getDimension(isRound
-                    ? R.dimen.fit_text_size_round : R.dimen.fit_text_size);
+            mIsRound = insets.isRound();
+            float textSize =  getResources().getDimension(mIsRound
+                    ? R.dimen.digital_text_size_round : R.dimen.digital_text_size);
 
             mTimePaint = new Paint();
             mTimePaint.setTextSize(textSize);
@@ -157,12 +157,14 @@ public class DigitalWatchFaceService extends CanvasWatchFaceService {
             mDatePaint.setTextSize(getResources().getDimension(R.dimen.digital_date_text_size));
             mColonWidth = mTimePaint.measureText(COLON_STRING);
 
+            mBitmapSize = Math.round(getResources().getDimension(mIsRound ? R.dimen.bitmap_size_round : R.dimen.bitmap_size));
+            float weatherTextSize = getResources().getDimension(mIsRound ? R.dimen.weather_text_size_round : R.dimen.weather_text_size );
             mWeatherPaint1 = new Paint();
-            mWeatherPaint1.setTextSize(textSize);
+            mWeatherPaint1.setTextSize(weatherTextSize);
             mWeatherPaint1.setARGB(255,255,255,255);
 
             mWeatherPaint2 = new Paint();
-            mWeatherPaint2.setTextSize(textSize);
+            mWeatherPaint2.setTextSize(weatherTextSize);
             mWeatherPaint2.setARGB(Color.alpha(dateColor),Color.red(dateColor),Color.green(dateColor),Color.blue(dateColor));
         }
 
@@ -181,7 +183,6 @@ public class DigitalWatchFaceService extends CanvasWatchFaceService {
             mGoogleApiClient.connect();
 
             /* initialize your watch face */
-            Resources resources = getResources();
             setWatchFaceStyle(new WatchFaceStyle.Builder(DigitalWatchFaceService.this)
                     .setCardPeekMode(WatchFaceStyle.PEEK_MODE_SHORT)
                     .setBackgroundVisibility(WatchFaceStyle
@@ -207,6 +208,9 @@ public class DigitalWatchFaceService extends CanvasWatchFaceService {
         @Override
         public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
             Log.v(TAG,"onConnectionFailed: " + connectionResult.toString());
+            if(connectionResult.getErrorCode() == ConnectionResult.SERVICE_VERSION_UPDATE_REQUIRED){
+
+            }
         }
 
         @Override
@@ -248,20 +252,39 @@ public class DigitalWatchFaceService extends CanvasWatchFaceService {
             if (mLowBitAmbient) {
                 boolean antiAlias = !inAmbientMode;
                 mTimePaint.setAntiAlias(antiAlias);
+                mDatePaint.setAntiAlias(antiAlias);
+                mWeatherPaint1.setAntiAlias(antiAlias);
+                mWeatherPaint2.setAntiAlias(antiAlias);
             }
             invalidate();
             updateTimer();
             Log.v(TAG,"Ambient mode changed");
         }
 
+        private boolean checkPlayServices() {
+            GoogleApiAvailability googleAPI = GoogleApiAvailability.getInstance();
+            int result = googleAPI.isGooglePlayServicesAvailable(getBaseContext());
+            if(result != ConnectionResult.SUCCESS) {
+                if(googleAPI.isUserResolvableError(result)) {
+                    Toast.makeText(getBaseContext(),getString(R.string.play_services_error),Toast.LENGTH_SHORT).show();
+                }
+
+                return false;
+            }
+
+            return true;
+        }
+
         @Override
         public void onDraw(Canvas canvas, Rect bounds) {
             //Log.v(TAG,"onDraw");
             long now = System.currentTimeMillis();
-            int width = bounds.width();
-            int height = bounds.height();
+            int screenWidth = bounds.width();
+            int screenHeight = bounds.height();
 
-            float centerX = width / 2f;
+            float centerX = screenWidth / 2f;
+            float centerY = screenHeight / 2f;
+
             mCalendar.setTimeInMillis(now);
 
             // Draws the background.
@@ -271,38 +294,39 @@ public class DigitalWatchFaceService extends CanvasWatchFaceService {
             String hourString = formatTwoDigitNumber(mCalendar.get(Calendar.HOUR_OF_DAY));
             String minuteString = formatTwoDigitNumber(mCalendar.get(Calendar.MINUTE));
             String timeString = hourString + COLON_STRING + minuteString;
-            float timeXPosition = (width - mTimePaint.measureText(timeString))/2;
-            float timeYPositon = getResources().getDimension(R.dimen.digital_y_offset);
+            float timeXPosition = (screenWidth - mTimePaint.measureText(timeString))/2;
+            float timeYPosition = getResources().getDimension(mIsRound ? R.dimen.digital_y_offset_round : R.dimen.digital_y_offset);
+            Log.v(TAG,"iS ROUND: " +mIsRound);
 
-            canvas.drawText(timeString, timeXPosition, timeYPositon, mTimePaint);
+            Log.v(TAG,"Time y pos: " + timeYPosition);
+            canvas.drawText(timeString, timeXPosition, timeYPosition, mTimePaint);
 
             // Date
             String dateString = Utility.getFriendlyDayString(now);
             float dateXPosition = getStartCenteredXPositionForView(bounds,mDatePaint.measureText(dateString));
-            float dateYPosition = timeYPositon + mTimePaint.getTextSize()/2 + getResources().getDimension(R.dimen.digital_line_height);
+            float dateYPosition = timeYPosition + mTimePaint.getTextSize()/2 + getResources().getDimension(R.dimen.digital_line_height);
             canvas.drawText(dateString, dateXPosition, dateYPosition, mDatePaint);
 
             // Line
             int lineWidth = 96;
-            float lineYPosition = dateYPosition + mDatePaint.getTextSize()/2 +  getResources().getDimension(R.dimen.digital_line_height);
             float lineXStartPosition = getStartCenteredXPositionForView(bounds,lineWidth);
             float lineXEndPosition = centerX+lineWidth/2;
-            canvas.drawLine(lineXStartPosition,lineYPosition,lineXEndPosition,lineYPosition,mTimePaint);
+            canvas.drawLine(lineXStartPosition,dateYPosition + getResources().getDimension(R.dimen.digital_line_height),
+                    lineXEndPosition,dateYPosition + getResources().getDimension(R.dimen.digital_line_height),mTimePaint);
             // Weather
 
             if (mWeatherBitmap!=null){
                 String maxTempString = mMaxTemp + " ";
-                int bitmapSize = Math.round(getResources().getDimension(R.dimen.bitmap_size));
-                Bitmap scaled = Bitmap.createScaledBitmap(mWeatherBitmap,bitmapSize,bitmapSize, true);
-                float weatherRowYPosition = lineYPosition + getResources().getDimension(R.dimen.digital_line_height);
+
+                Bitmap scaled = Bitmap.createScaledBitmap(mWeatherBitmap,mBitmapSize,mBitmapSize, true);
+                float weatherRowYPosition = dateYPosition + getResources().getDimension(R.dimen.digital_line_height);
                 float bitmapXPosition = getStartCenteredXPositionForView(bounds,(float) scaled.getWidth()
                         + mWeatherPaint1.measureText(maxTempString) + mWeatherPaint2.measureText(mMinTemp) );
-                canvas.drawBitmap(scaled,bitmapXPosition,weatherRowYPosition,mDatePaint);
-                float tempStringXPosition = bitmapXPosition + scaled.getWidth() + getResources().getDimension(R.dimen.digital_line_height);
-                canvas.drawText(maxTempString,tempStringXPosition, weatherRowYPosition+mWeatherPaint1.getTextSize(), mWeatherPaint1);
-                canvas.drawText(mMinTemp,tempStringXPosition + mWeatherPaint1.measureText(maxTempString), weatherRowYPosition+mWeatherPaint1.getTextSize(), mWeatherPaint2);
-            }else{
-                requestWeatherInfoToSunshine();
+                canvas.drawBitmap(scaled,bitmapXPosition,weatherRowYPosition + mBitmapSize/2,mWeatherPaint1);
+                float tempStringXPosition = bitmapXPosition + scaled.getWidth() + mWeatherPaint1.measureText(" ");
+                float tempStringYPosition = weatherRowYPosition+mWeatherPaint1.getTextSize() + mBitmapSize/2;
+                canvas.drawText(maxTempString,tempStringXPosition, tempStringYPosition, mWeatherPaint1);
+                canvas.drawText(mMinTemp,tempStringXPosition + mWeatherPaint1.measureText(maxTempString), tempStringYPosition, mWeatherPaint2);
             }
         }
 
