@@ -31,8 +31,8 @@
     <dimen name="interactive_y_offset">72dp</dimen>
     <dimen name="interactive_y_offset_round">84dp</dimen>
     <dimen name="interactive_line_height">25dp</dimen>
-    <dimen name="weather_text_size">20sp</dimen>
-    <dimen name="weather_text_size_round">26sp</dimen>
-    <dimen name="bitmap_size">24dp</dimen>
-    <dimen name="bitmap_size_round">30dp</dimen>
+    <dimen name="weather_text_size">26sp</dimen>
+    <dimen name="weather_text_size_round">30sp</dimen>
+    <dimen name="bitmap_size">32dp</dimen>
+    <dimen name="bitmap_size_round">36dp</dimen>
 </resources>

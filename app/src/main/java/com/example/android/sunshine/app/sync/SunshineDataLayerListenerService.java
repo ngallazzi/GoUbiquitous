@@ -30,22 +30,6 @@ public class SunshineDataLayerListenerService extends WearableListenerService {
     }
 
     @Override
-    public void onCreate() {
-        super.onCreate();
-        Timer timer = new Timer();
-//timer.schedule(task, delay, period)
-//timer.schedule( new performClass(), 1000, 30000 );
-// or you can write in another way
-//timer.scheduleAtFixedRate(task, delay, period);
-        timer.scheduleAtFixedRate(new TimerTask() {
-            @Override
-            public void run() {
-                Log.v(TAG,"I'm alive");
-            }
-        }, 1000, 5000);
-    }
-
-    @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         Log.v(TAG,"on Start command");
         return START_STICKY;
